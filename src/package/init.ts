@@ -327,7 +327,7 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
     }
   }
 
-  // 从dom树上批量添加vnode对应的dom元素
+
   function patchVnode(
     oldVnode: VNode,
     vnode: VNode,
@@ -363,24 +363,25 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
     }
     hook?.postpatch?.(oldVnode, vnode);
   }
-  //
   return function patch(oldVnode: VNode | Element, vnode: VNode): VNode {
     let i: number, elm: Node, parent: Node;
     const insertedVnodeQueue: VNodeQueue = [];
     for (i = 0; i < cbs.pre.length; ++i) cbs.pre[i]();
 
+    // step1：判断老节点是否是是一个dom节点，如果是就转换成虚拟dom节点
     if (!isVnode(oldVnode)) {
       oldVnode = emptyNodeAt(oldVnode);
     }
-
+    // step2：判断两个节点是否相同（根据sel和key属性）
     if (sameVnode(oldVnode, vnode)) {
+       // step3.1：
       patchVnode(oldVnode, vnode, insertedVnodeQueue);
     } else {
+      // step3.2.1：如果不是相同节点，则以vnode作为输入创建dom节点
       elm = oldVnode.elm!;
       parent = api.parentNode(elm) as Node;
-
       createElm(vnode, insertedVnodeQueue);
-
+      // step3.2.2: 将新dom节点挂载作为老dom节点的兄弟节点，删除老dom节点。
       if (parent !== null) {
         api.insertBefore(parent, vnode.elm!, api.nextSibling(elm));
         removeVnodes(parent, [oldVnode], 0, 0);

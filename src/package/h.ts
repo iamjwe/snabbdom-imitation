@@ -22,12 +22,12 @@ export function h (sel: string): VNode
 export function h (sel: string, data: VNodeData | null): VNode
 export function h (sel: string, children: VNodeChildren): VNode
 export function h (sel: string, data: VNodeData | null, children: VNodeChildren): VNode
-export function h (sel: any, b?: any, c?: any): VNode {
+export function h (sel: any, b?: any, c?: any): VNode { // 负责解析并预处理输入，转发给vnode方法
   var data: VNodeData = {}
   var children: any
   var text: any
   var i: number
-  if (c !== undefined) {
+  if (c !== undefined) {    // 输入解析（重载）1：调用者传入了三个参数，b视为data（属性节点），c视为children/text（子节点），对应于传参方式h4
     if (b !== null) {
       data = b
     }
@@ -38,7 +38,7 @@ export function h (sel: any, b?: any, c?: any): VNode {
     } else if (c && c.sel) {
       children = [c]
     }
-  } else if (b !== undefined && b !== null) {
+  } else if (b !== undefined && b !== null) {  // 输入解析（重载）2：调用者传入了两个参数，判断b类型后把b视为children/text或data，对应于传参方式h2或h3
     if (is.array(b)) {
       children = b
     } else if (is.primitive(b)) {
@@ -47,11 +47,15 @@ export function h (sel: any, b?: any, c?: any): VNode {
       children = [b]
     } else { data = b }
   }
-  if (children !== undefined) {
+  // 输入解析（重载）3：调用者只传了一个参数时，视为只传入了一个带选择器的空标签，对应于传参方式h1
+
+  // 预处理逻辑1，把文本转为虚拟dom系
+  if (children !== undefined) { // 
     for (i = 0; i < children.length; ++i) {
       if (is.primitive(children[i])) children[i] = vnode(undefined, undefined, undefined, children[i], undefined)
     }
   }
+  // 预处理逻辑2，为svg添加命名空间
   if (
     sel[0] === 's' && sel[1] === 'v' && sel[2] === 'g' &&
     (sel.length === 3 || sel[3] === '.' || sel[3] === '#')
