@@ -119,30 +119,31 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
     }
     const children = vnode.children;
     const sel = vnode.sel;
-    if (sel === "!") {
+    if (sel === "!") {  // type1：注释节点类型的创建
       if (isUndef(vnode.text)) {
         vnode.text = "";
       }
       vnode.elm = api.createComment(vnode.text!);
-    } else if (sel !== undefined) {
-      // Parse selector
-      const hashIdx = sel.indexOf("#");
-      const dotIdx = sel.indexOf(".", hashIdx);
-      const hash = hashIdx > 0 ? hashIdx : sel.length;
-      const dot = dotIdx > 0 ? dotIdx : sel.length;
+    } else if (sel !== undefined) { // type2：元素节点的创建（同时创建id、class属性节点和子节点）
+      // 假设sel = "#ii.c1.c2"
+      const hashIdx = sel.indexOf("#"); // hashIdx = 0
+      const dotIdx = sel.indexOf(".", hashIdx); // dotIdx = 3
+      const hash = hashIdx > 0 ? hashIdx : sel.length;  // hash = 9
+      const dot = dotIdx > 0 ? dotIdx : sel.length; // dot = 3
       const tag =
         hashIdx !== -1 || dotIdx !== -1
           ? sel.slice(0, Math.min(hash, dot))
-          : sel;
+          : sel;  // tag = "#ii"
       const elm = (vnode.elm =
         isDef(data) && isDef((i = data.ns))
           ? api.createElementNS(i, tag)
-          : api.createElement(tag));
-      if (hash < dot) elm.setAttribute("id", sel.slice(hash + 1, dot));
+          : api.createElement(tag));  // elm = 一个带id属性的空节点
+      if (hash < dot) elm.setAttribute("id", sel.slice(hash + 1, dot)); // 为elm设置属性：id = "ii"
       if (dotIdx > 0)
-        elm.setAttribute("class", sel.slice(dot + 1).replace(/\./g, " "));
+        elm.setAttribute("class", sel.slice(dot + 1).replace(/\./g, " "));  // 为elm设置属性：class = "c1 c2"
+      // 总结1：经过以上操作，sel属性解析完成，创建了一个带id属性和class属性的空元素节点
       for (i = 0; i < cbs.create.length; ++i) cbs.create[i](emptyNode, vnode);
-      if (is.array(children)) {
+      if (is.array(children)) { // 递归创建元素子节点并挂载在该元素上
         for (i = 0; i < children.length; ++i) {
           const ch = children[i];
           if (ch != null) {
@@ -159,11 +160,12 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
           insertedVnodeQueue.push(vnode);
         }
       }
-    } else {
+    } else {  // type3：文本节点的创建
       vnode.elm = api.createTextNode(vnode.text!);
     }
     return vnode.elm;
   }
+
   // 批量添加dom节点到dom树上
   function addVnodes(
     parentElm: Node,
@@ -257,15 +259,17 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         newStartVnode = newCh[++newStartIdx];
       } else if (newEndVnode == null) {
         newEndVnode = newCh[--newEndIdx];
-      } else if (sameVnode(oldStartVnode, newStartVnode)) {
+      } 
+      // 经过以上四个步骤之后，能够确保oldStartVnode、oldEndVnode、newStartVnode、newEndVnode都不为null，防止children数组中有null
+      else if (sameVnode(oldStartVnode, newStartVnode)) { // 1.新旧开始节点相同，保留并更新老的children dom节点
         patchVnode(oldStartVnode, newStartVnode, insertedVnodeQueue);
         oldStartVnode = oldCh[++oldStartIdx];
         newStartVnode = newCh[++newStartIdx];
-      } else if (sameVnode(oldEndVnode, newEndVnode)) {
+      } else if (sameVnode(oldEndVnode, newEndVnode)) { // 2.新旧结束节点相同，保留并更新该老的children dom节点
         patchVnode(oldEndVnode, newEndVnode, insertedVnodeQueue);
         oldEndVnode = oldCh[--oldEndIdx];
         newEndVnode = newCh[--newEndIdx];
-      } else if (sameVnode(oldStartVnode, newEndVnode)) {
+      } else if (sameVnode(oldStartVnode, newEndVnode)) { // 3.老开始节点和新结束节点相同，用新结束节点更新老开始节点，并把老开始节点移动到老结束节点之前
         // Vnode moved right
         patchVnode(oldStartVnode, newEndVnode, insertedVnodeQueue);
         api.insertBefore(
@@ -275,18 +279,18 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         );
         oldStartVnode = oldCh[++oldStartIdx];
         newEndVnode = newCh[--newEndIdx];
-      } else if (sameVnode(oldEndVnode, newStartVnode)) {
-        // Vnode moved left
+      } else if (sameVnode(oldEndVnode, newStartVnode)) { // 4.老结束节点和新开始节点相同，用新开始节点更新老结束节点，把老结束节点放到老开始节点之前
         patchVnode(oldEndVnode, newStartVnode, insertedVnodeQueue);
         api.insertBefore(parentElm, oldEndVnode.elm!, oldStartVnode.elm!);
         oldEndVnode = oldCh[--oldEndIdx];
         newStartVnode = newCh[++newStartIdx];
-      } else {
-        if (oldKeyToIdx === undefined) {
+      } else {  // 5.经过以上四个特例比较都没匹配到就用下述操作遍历匹配（上述四种情况是为了减少此通配的匹配数量），尽量找到当前新开始节点可以更新的老节点，避免创建新开始节点对应的dom对象
+        // 下面用新开始节点的key来匹配所有剩余老节点的key以找到dom。问题：为什么不直接用sel？sel相同并不意味着vnode相同（需要key和sel都相同）
+        if (oldKeyToIdx === undefined) {  // 找到所有剩下（被上述四种特殊情况过滤后）的老节点的key id映射对象
           oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
         }
         idxInOld = oldKeyToIdx[newStartVnode.key as string];
-        if (isUndef(idxInOld)) {
+        if (isUndef(idxInOld)) {  // type1.没有对应的老节点（key不同），需要创建dom对象并插入到老开始节点之前（因为是要以新节点数组的顺序为老节点数组的序）
           // New element
           api.insertBefore(
             parentElm,
@@ -295,13 +299,13 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
           );
         } else {
           elmToMove = oldCh[idxInOld];
-          if (elmToMove.sel !== newStartVnode.sel) {
+          if (elmToMove.sel !== newStartVnode.sel) {   // type1.没有对应的老节点（key相同但sel不同），需要创建dom对象并插入到老开始节点之前。（li不设置key问题）
             api.insertBefore(
               parentElm,
               createElm(newStartVnode, insertedVnodeQueue),
               oldStartVnode.elm!
             );
-          } else {
+          } else {// type2.有对应的老节点，更新该老dom对象并插入到老开始节点之前
             patchVnode(elmToMove, newStartVnode, insertedVnodeQueue);
             oldCh[idxInOld] = undefined as any;
             api.insertBefore(parentElm, elmToMove.elm!, oldStartVnode.elm!);
@@ -310,8 +314,8 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         newStartVnode = newCh[++newStartIdx];
       }
     }
-    if (oldStartIdx <= oldEndIdx || newStartIdx <= newEndIdx) {
-      if (oldStartIdx > oldEndIdx) {
+    if (oldStartIdx <= oldEndIdx || newStartIdx <= newEndIdx) { // 新或老children数组用完了，对比于新节点数组，老dom节点数组中多的删了，少的补上
+      if (oldStartIdx > oldEndIdx) {  // type1：老children数组匹配完了，后面的新节点（[newStartIdx, newEndIdx]）直接加在最后老节点的后面就行
         before = newCh[newEndIdx + 1] == null ? null : newCh[newEndIdx + 1].elm;
         addVnodes(
           parentElm,
@@ -321,7 +325,7 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
           newEndIdx,
           insertedVnodeQueue
         );
-      } else {
+      } else {  // type2：新children数组匹配完了，把多余的老dom节点（[oldStartIdx, oldEndIdx]）干掉
         removeVnodes(parentElm, oldCh, oldStartIdx, oldEndIdx);
       }
     }
@@ -344,18 +348,18 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         cbs.update[i](oldVnode, vnode);
       vnode.data.hook?.update?.(oldVnode, vnode);
     }
-    if (isUndef(vnode.text)) {
-      if (isDef(oldCh) && isDef(ch)) {
+    if (isUndef(vnode.text)) {  // type1：新节点没有文本节点时的更新，也就是有可能有children或者没有children（没有children对dom来说并不是意味着没有子结点）
+      if (isDef(oldCh) && isDef(ch)) {  // type1.1：新节点有children，老节点也有children
         if (oldCh !== ch) updateChildren(elm, oldCh, ch, insertedVnodeQueue);
-      } else if (isDef(ch)) {
-        if (isDef(oldVnode.text)) api.setTextContent(elm, "");
+      } else if (isDef(ch)) { // type1.2新节点有children，老节点没有children
+        if (isDef(oldVnode.text)) api.setTextContent(elm, "");  // 
         addVnodes(elm, null, ch, 0, ch.length - 1, insertedVnodeQueue);
-      } else if (isDef(oldCh)) {
+      } else if (isDef(oldCh)) {  // type1.3新节点没有children，老节点有children
         removeVnodes(elm, oldCh, 0, oldCh.length - 1);
-      } else if (isDef(oldVnode.text)) {
+      } else if (isDef(oldVnode.text)) {// type1.3新节点没有children，老节点没有children（有可能有text）
         api.setTextContent(elm, "");
       }
-    } else if (oldVnode.text !== vnode.text) {
+    } else if (oldVnode.text !== vnode.text) {  // type2：新节点只有一个文本节点时的更新
       if (isDef(oldCh)) {
         removeVnodes(elm, oldCh, 0, oldCh.length - 1);
       }

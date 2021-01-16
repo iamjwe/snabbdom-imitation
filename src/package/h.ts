@@ -48,7 +48,6 @@ export function h (sel: any, b?: any, c?: any): VNode { // 负责解析并预处
     } else { data = b }
   }
   // 输入解析（重载）3：调用者只传了一个参数时，视为只传入了一个带选择器的空标签，对应于传参方式h1
-
   // 预处理逻辑1，把文本转为虚拟dom系
   if (children !== undefined) { // 
     for (i = 0; i < children.length; ++i) {
