@@ -56,7 +56,7 @@ const hooks: Array<keyof Module> = [
   "pre",
   "post",
 ];
-// 初始化patch函数（初始化全局钩子）
+
 export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
   let i: number;
   let j: number;
@@ -70,7 +70,6 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
   };
 
   const api: DOMAPI = domApi !== undefined ? domApi : htmlDomApi;
-// 把模块中的钩子挂载集合到全局的hooks数组中
   for (i = 0; i < hooks.length; ++i) {
     cbs[hooks[i]] = [];
     for (j = 0; j < modules.length; ++j) {
@@ -92,7 +91,6 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
       elm
     );
   }
-  //
   function createRmCb(childElm: Node, listeners: number) {
     return function rmCb() {
       if (--listeners === 0) {
@@ -124,7 +122,7 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         vnode.text = "";
       }
       vnode.elm = api.createComment(vnode.text!);
-    } else if (sel !== undefined) { // type2：元素节点的创建（同时创建id、class属性节点和子节点）
+    } else if (sel !== undefined) { // type2、3：元素节点和id、class属性节点的创建（其它的属性节点在钩子模块的钩子中创建）
       // 假设sel = "#ii.c1.c2"
       const hashIdx = sel.indexOf("#"); // hashIdx = 0
       const dotIdx = sel.indexOf(".", hashIdx); // dotIdx = 3
@@ -160,13 +158,12 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
           insertedVnodeQueue.push(vnode);
         }
       }
-    } else {  // type3：文本节点的创建
+    } else {  // type4：文本节点的创建
       vnode.elm = api.createTextNode(vnode.text!);
     }
     return vnode.elm;
   }
 
-  // 批量添加dom节点到dom树上
   function addVnodes(
     parentElm: Node,
     before: Node | null,
@@ -182,7 +179,6 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
       }
     }
   }
-  // 唤起destory钩子（递归所有子节点）
   function invokeDestroyHook(vnode: VNode) {
     const data = vnode.data;
     if (data !== undefined) {
@@ -199,7 +195,6 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
     }
   }
 
-  // 从dom树上批量移除vnode对应的dom元素
   function removeVnodes(
     parentElm: Node,
     vnodes: VNode[],
@@ -284,7 +279,7 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
         api.insertBefore(parentElm, oldEndVnode.elm!, oldStartVnode.elm!);
         oldEndVnode = oldCh[--oldEndIdx];
         newStartVnode = newCh[++newStartIdx];
-      } else {  // 5.经过以上四个特例比较都没匹配到就用下述操作遍历匹配（上述四种情况是为了减少此通配的匹配数量），尽量找到当前新开始节点可以更新的老节点，避免创建新开始节点对应的dom对象
+      } else {  // 5.普适情况
         // 下面用新开始节点的key来匹配所有剩余老节点的key以找到dom。问题：为什么不直接用sel？sel相同并不意味着vnode相同（需要key和sel都相同）
         if (oldKeyToIdx === undefined) {  // 找到所有剩下（被上述四种特殊情况过滤后）的老节点的key id映射对象
           oldKeyToIdx = createKeyToOldIdx(oldCh, oldStartIdx, oldEndIdx);
@@ -376,16 +371,13 @@ export function init(modules: Array<Partial<Module>>, domApi?: DOMAPI) {
     if (!isVnode(oldVnode)) {
       oldVnode = emptyNodeAt(oldVnode);
     }
-    // step2：判断两个节点是否相同（根据sel和key属性）
-    if (sameVnode(oldVnode, vnode)) {
-       // step3.1：
+    // step2：判断新老节点是否相同（根据sel和key属性）
+    if (sameVnode(oldVnode, vnode)) { // step3.1：如果相同就用新节点更新老节点
       patchVnode(oldVnode, vnode, insertedVnodeQueue);
-    } else {
-      // step3.2.1：如果不是相同节点，则以vnode作为输入创建dom节点
+    } else {  // step3.2：如果不同就用新节点“替换”老节点
       elm = oldVnode.elm!;
       parent = api.parentNode(elm) as Node;
       createElm(vnode, insertedVnodeQueue);
-      // step3.2.2: 将新dom节点挂载作为老dom节点的兄弟节点，删除老dom节点。
       if (parent !== null) {
         api.insertBefore(parent, vnode.elm!, api.nextSibling(elm));
         removeVnodes(parent, [oldVnode], 0, 0);
